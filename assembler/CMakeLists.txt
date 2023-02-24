@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 14)
 
 add_executable(niisc_assembler
         lexer.cpp
-        main.cpp)
+        main.cpp lexer.h)
