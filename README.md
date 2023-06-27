@@ -5,10 +5,10 @@ The save file for the logic simulator / game "turing complete" is included, the 
 
 ## Compiler and Assembler
 Provided toolchain to be used in junction with the logic simulation. Both are a work in progress.
-### 1) Compiler
+#### 1) Compiler
 The compiler will *compile* C-Like code to assembly, after which it can be assembled using the provided assembler.
 
-### 2) Assembler
+#### 2) Assembler
 The assembler can be used to assemble code produced by the compiler or to assemble assembly code written by the user.
 
 ## Acknowledgments
