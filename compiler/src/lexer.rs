@@ -44,7 +44,7 @@ pub struct Token {
 
 pub fn get_tokens(str: &String) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
-	let mut iter = str.chars().enumerate();
+	let mut iter = str.chars().enumerate().peekable();
     
 	loop {
 		let (mut i,mut c_char) = iter.next().unwrap();
@@ -63,31 +63,31 @@ pub fn get_tokens(str: &String) -> Vec<Token> {
 
 			'/' => tokens.push(Token { data: c_char.to_string(), token: TokenType::SLASH }),
 
-			'=' => if peek(str, i) == '=' {
+			'=' => if peek(&mut iter) == '=' {
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::EQEQ });
 					iter.next();
 				}else{
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::EQ });
 				}
 
-			'>' => if peek(str, i) == '=' {
+			'>' => if peek(&mut iter) == '=' {
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::GTEQ });
 					iter.next();
 				}else{
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::GT });	
 				}
 
-			'<' => if peek(str, i) == '=' {
+			'<' => if peek(&mut iter) == '=' {
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::LTEQ });
 					iter.next();
 				}else{
 					tokens.push(Token { data: c_char.to_string(), token: TokenType::LT });
 				}
 
-			'!' => if peek(str, i) == '=' {
+			'!' => if peek(&mut iter) == '=' {
 				tokens.push(Token { data: c_char.to_string(), token: TokenType::NOTEQ });
 				} else {
-					panic!("expected !=, got ! and {}", peek(str, i));
+					panic!("expected !=, got ! and {}", peek(&mut iter));
 				}
 
 			'\"' => {
@@ -105,14 +105,14 @@ pub fn get_tokens(str: &String) -> Vec<Token> {
 			'0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9' => {
 				let start_index = i;
 
-				while peek(str, i).is_numeric() {
+				while peek(&mut iter).is_numeric() {
 					(i, _) = iter.next().unwrap(); 
 				}
 
-				if peek(str, i) == '.'{
+				if peek(&mut iter) == '.'{
 					panic!("no decimal/floating point numbers allowed");
 				}
-				tokens.push(Token { data: str[start_index..i].to_owned(), token: TokenType::NUMBER });
+				tokens.push(Token { data: str[start_index..(i+1)].to_owned(), token: TokenType::NUMBER });
 
 			}
 			
@@ -127,7 +127,7 @@ pub fn get_tokens(str: &String) -> Vec<Token> {
 
 				let start_index = i;
 
-				while peek(str, i).is_alphanumeric() {
+				while peek(&mut iter).is_alphanumeric() {
 					(i, _) = iter.next().unwrap(); 
 				}
 
@@ -140,11 +140,10 @@ pub fn get_tokens(str: &String) -> Vec<Token> {
 			}
 			
         }
-		if i+1 == str.chars().count() 
-		{
-			tokens.push(Token { data: String::from(""), token: TokenType::EOF });
-			break; 
-		}
+		if let None = iter.peek() {
+            tokens.push(Token { data: String::from(""), token: TokenType::EOF });
+            break;
+        }
     }
     tokens
 }
@@ -158,9 +157,9 @@ fn check_if_keyword(token_text: &String) -> TokenType {
 	TokenType::IDENT
 }
 
-fn peek(str: &String, index: usize) -> char {
-	if index + 1 >= str.len() {
-		return '\0';
-	}
-	str.chars().nth(index+1).expect("error in peek function")
+fn peek(iter: &mut std::iter::Peekable<std::iter::Enumerate<std::str::Chars>>) -> char {
+    match iter.peek() {
+        Some((_, c)) => c.clone(),
+        None => '\0',
+    }
 }
