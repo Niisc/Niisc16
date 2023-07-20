@@ -12,6 +12,8 @@ pub struct Parser<'a> {
     str: &'a String,
     iter: &'a mut Peekable<Enumerate<Chars<'a>>>,
     current_tokens: Vec<Token>,
+    all_tokens: Vec<Token>,
+    all_tokens_iter: Option<Enumerate<std::vec::IntoIter<Token>>>,
     //program specific stuff
     start_defined: bool,
     text_defined: bool,
@@ -31,6 +33,8 @@ impl<'a> Parser<'a> {
             str: code,
             iter: ite,
             current_tokens: Vec::new(),
+            all_tokens: Vec::new(),
+            all_tokens_iter: None,
 
             start_defined: false,
             text_defined: false,
@@ -40,6 +44,27 @@ impl<'a> Parser<'a> {
     }
 
     pub fn program(&'a mut self, emitter: &mut Emitter) {
+
+        //push all tokens to a vector for easy access
+        self.all_tokens.push(self.current_token.clone());
+        self.all_tokens.push(self.peek_token.clone());
+        loop {
+            self.all_tokens.push(get_token(self.str, self.iter));
+            if self.all_tokens.last().unwrap().token == TokenType::EOF {
+                break;
+            }
+        }
+
+        self.all_tokens_iter = Some(self.all_tokens.clone().into_iter().enumerate());
+
+        //we need to check that only 1 .text and 1 .data is declared
+        //find where the star may be
+
+        self.check_sections();
+
+        if self.all_tokens.get(0).unwrap().token != TokenType::SECTION {
+            panic!("Provided code must either begin with section .data or section .text, could not find \"section\"");
+        }
 
         while self.current_token.token == TokenType::NEWLINE {
             self.next_token()
@@ -55,8 +80,26 @@ impl<'a> Parser<'a> {
         //need to check here that _start, .text and .data were defined.
 
     }
-    //need to add a warning for when a 16 bit and 8 bit register are being used
-    //need to check that instructions are under text and variables are under data
+
+    fn check_sections(&mut self) -> Result<(), &'static str>{
+
+        let mut iter = self.all_tokens.iter().enumerate();
+        
+        //make sure first check is a section
+        let (_,x) = iter.next().unwrap();
+        if x.token != TokenType::SECTION {
+            return Err("Expected section as first token. Check spelling");
+        }
+
+        loop {
+            
+
+
+        }
+    }
+
+    // need to add a warning for when a 16 bit and 8 bit register are being used
+    // need to check that instructions are under text and variables are under data
     fn instruction(&mut self, emitter: &mut Emitter) {
         match self.current_token.token {
 
@@ -92,32 +135,9 @@ impl<'a> Parser<'a> {
             }
 
             TokenType::IDENT => {
-                match self.current_section.clone().expect("Can't declare anything before .text or .data segment") {
-                    TokenType::DATA => {
-                        if self.symbols.contains(&self.current_token.data) {
-                            panic!("Multiple variables with the same name found")
-                        }
-                        self.next_token();
-                        if self.check_token(TokenType::COLON) {
-                            panic!("Need to add a colon after the variable name definition in .data")
-                        }
-                        self.symbols.push(self.current_token.data.clone());
-                    },
-                    TokenType::TEXT => {
-                        if self.label_is_declared.contains(&self.current_token.data) {
-                            panic!("Multiple labels with the same name found")
-                        }
-                        self.next_token();
-                        if self.check_token(TokenType::COLON) {
-                            panic!("Need to add a colon after the label name definition in .data")
-                        }
-                        self.label_is_declared.push(self.current_token.data.clone());
-                    },
-                    _ => panic!("Found an unexpected token in ident")
-                }
+                
             }
 
-            
 
             TokenType::IMM => {
                 self.next_token();
@@ -163,10 +183,24 @@ impl<'a> Parser<'a> {
                 self.next_token();
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to jump to when using jz/jnz. Found: {}", self.current_token.token);
+                
                 }
-                if self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
-                    panic!("Need to add a label, number or register to jump to when using jz/jnz. Found: {}", self.current_token.token);
+                if self.check_token(TokenType::IDENT) {
+                    let a = self.find_label();
+
                 }
+
+
+
+                self.next_token();
+                if !self.check_token(TokenType::COMMA) {
+                    panic!("Need to add a comma in between arguments when using jz/jnz");
+                }
+                self.next_token();
+                if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
+                    panic!("Need to add a label, number or register to compare when using jz/jnz. Found: {}", self.current_token.token);
+                }
+
 
                 //how do we handle the labels
                 //make a vector to hold all of the tokens and remove the string at the emitter
@@ -185,6 +219,29 @@ impl<'a> Parser<'a> {
         }
         self.new_line();
     }
+
+    
+    fn find_label(&mut self) -> Result<&Token, &'static str> {
+        //we check the label syntax in the instruction fn
+        let mut found_token: Option<&Token> = None;
+        let mut current_sect: Option<&Token> = None;
+
+        let mut iter = self.all_tokens.iter().enumerate();
+        loop {
+            let (_,x) = iter.next().unwrap();
+
+            
+
+        }
+
+        
+
+        match found_token {
+            None => Err("Could not find label to jump to, check spelling"),
+            Some(x) => Ok(x)
+        }
+    }
+
 
     fn check_token(&mut self, token: TokenType) -> bool {
         self.current_token.token  == token
@@ -215,10 +272,13 @@ impl<'a> Parser<'a> {
     }
 
     fn next_token(&mut self) {
+        if self.peek_token.token == TokenType::EOF {
+            self.current_token = self.peek_token.clone();
+        }else {
+            self.current_token = self.peek_token.clone();
+            self.current_tokens.push(self.current_token.clone());
+            self.peek_token = self.all_tokens_iter.as_mut().unwrap().next().expect("Failed to get next token").1;
+        }
         
-        self.current_token = self.peek_token.clone();
-        self.current_tokens.push(self.current_token.clone());
-        self.peek_token = get_token(self.str, self.iter);
-        //can go on forever, need to check
     }
 }

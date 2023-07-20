@@ -13,6 +13,10 @@ fn main() {
 
     let code = fs::read_to_string(file_name).expect("error with opening / finding the file");
 
+    if code.is_empty() {
+        panic!("Empty file was provided");
+    }
+
     let mut iter = code.chars().enumerate().peekable();
 
     let mut parser = Parser::init(&code, &mut iter);
