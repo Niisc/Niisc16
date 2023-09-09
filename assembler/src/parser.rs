@@ -14,12 +14,9 @@ pub struct Parser<'a> {
     current_tokens: Vec<Token>,
     all_tokens: Vec<Token>,
     all_tokens_iter: Option<Enumerate<std::vec::IntoIter<Token>>>,
+    
     //program specific stuff
     start_defined: bool,
-    text_defined: bool,
-    data_defined: bool,
-    current_section: Option<TokenType>
-
 }
 
 impl<'a> Parser<'a> {
@@ -37,13 +34,10 @@ impl<'a> Parser<'a> {
             all_tokens_iter: None,
 
             start_defined: false,
-            text_defined: false,
-            data_defined: false,
-            current_section: None
         }
     }
 
-    pub fn program(&'a mut self, emitter: &mut Emitter) {
+    pub fn program(&'a mut self, emitter: &mut Emitter) -> Result<(), &'static str> {
 
         //push all tokens to a vector for easy access
         self.all_tokens.push(self.current_token.clone());
@@ -57,45 +51,64 @@ impl<'a> Parser<'a> {
 
         self.all_tokens_iter = Some(self.all_tokens.clone().into_iter().enumerate());
 
-        //we need to check that only 1 .text and 1 .data is declared
-        //find where the star may be
-
-        self.check_sections();
-
-        if self.all_tokens.get(0).unwrap().token != TokenType::SECTION {
-            panic!("Provided code must either begin with section .data or section .text, could not find \"section\"");
+        //check sections once
+        match self.check_sections() {
+            Ok(_) =>{},
+            Err(x) => return Err(x),
         }
 
-        while self.current_token.token == TokenType::NEWLINE {
+        //skip the first few lines
+        while  self.check_token(TokenType::NEWLINE) {
             self.next_token()
         }
+
 
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
 
-        while self.current_token.token != TokenType::EOF {
-            self.instruction(emitter);
+        while !self.check_token(TokenType::EOF) {
+            self.section(emitter);
         }
+
+        Ok(())
 
         //need to check here that _start, .text and .data were defined.
 
     }
 
-    fn check_sections(&mut self) -> Result<(), &'static str>{
 
-        let mut iter = self.all_tokens.iter().enumerate();
+    fn section(&mut self, emitter: &mut Emitter) {
         
-        //make sure first check is a section
-        let (_,x) = iter.next().unwrap();
-        if x.token != TokenType::SECTION {
-            return Err("Expected section as first token. Check spelling");
-        }
-
         loop {
+
+            if !self.check_token(TokenType::SECTION) {
+                panic!("Expected a section, Found: {}", self.current_token.token.to_string());
+            }
+
+            self.next_token();
+
+            if self.check_token(TokenType::TEXT) {
+                self.next_token();
+                while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
+                    self.instruction(emitter);
+                }
+            }
+            
+            if self.check_token(TokenType::DATA) {
+
+                self.next_token();
+
+                while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
+
+                    self.next_token();
+                }
+            }
+
             
 
-
+            if self.check_token(TokenType::EOF) { break; }
         }
+
     }
 
     // need to add a warning for when a 16 bit and 8 bit register are being used
@@ -103,42 +116,11 @@ impl<'a> Parser<'a> {
     fn instruction(&mut self, emitter: &mut Emitter) {
         match self.current_token.token {
 
-            TokenType::SECTION => {
-                self.next_token();
-
-                match self.current_token.token {
-                    TokenType::DATA => {
-                        if self.data_defined { panic!(".data section already defined")}
-                        self.current_section = Some(TokenType::DATA);
-                        self.data_defined = true;
-
-                    }
-                    TokenType::TEXT => {
-                        if self.text_defined { panic!(".text section already defined")}
-                        self.current_section = Some(TokenType::TEXT);
-                        self.text_defined = true;
-
-                    }
-                    _ => panic!("Only sections allowed are \".data\" and \".text\".\nFound: \"{}\"", self.current_token.token.to_string())
-                }
-            }
             // make it so it can be on the same line (use continue)
-            TokenType::_START => {
-                if self.start_defined {
-                    panic!("There's already a start defined");
-                }
-                self.next_token();
-                if !self.check_token(TokenType::COLON) {
-                    panic!("Need a colon after start label as is the case with all other labels");
-                }
-                self.start_defined = true;
-            }
 
-            TokenType::IDENT => {
-                
-            }
+            
 
-
+            //add imm label
             TokenType::IMM => {
                 self.next_token();
                 if !self.check_token(TokenType::NUMBER) {
@@ -151,7 +133,7 @@ impl<'a> Parser<'a> {
                 self.next_token();
             }
 
-            TokenType::ADD | TokenType::SUB | TokenType::AND | TokenType::OR | TokenType::MULU | TokenType::MULSW | TokenType::MULSB | TokenType::XOR | TokenType::DIVU | TokenType::DIVSB | TokenType::DIVSW | TokenType::SHL | TokenType::SHR | TokenType::CMP => {
+            TokenType::ADD | TokenType::SUB | TokenType::AND | TokenType::OR | TokenType::MULU | TokenType::MULSW | TokenType::MULSB | TokenType::XOR | TokenType::DIVU | TokenType::DIVSB | TokenType::DIVSW | TokenType::SHL | TokenType::SHR | TokenType::CMP | TokenType::MOV => {
                 let c_token =  self.current_token.token.to_string();
                 self.next_token();
                 if !self.check_token_register() {
@@ -180,17 +162,20 @@ impl<'a> Parser<'a> {
             
 
             TokenType::JNZ | TokenType::JZ => {
+                let mut label_jmp: Option<&Token> = None;
                 self.next_token();
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to jump to when using jz/jnz. Found: {}", self.current_token.token);
                 
                 }
                 if self.check_token(TokenType::IDENT) {
-                    let a = self.find_label();
+                    
+                    match self.find_label() {
+                        Err(x) => panic!("{}", x),
+                        Ok(x) => label_jmp = Some(x),
+                    }
 
                 }
-
-
 
                 self.next_token();
                 if !self.check_token(TokenType::COMMA) {
@@ -212,7 +197,24 @@ impl<'a> Parser<'a> {
 
             }
 
-            _ => panic!("Token type not handled in ident? {}", self.current_token.token.to_string())
+            //Here we add the tokens we dont have to handle
+            TokenType::IDENT =>{
+                if self.current_token.data.to_lowercase() == "_start" {
+                    if self.start_defined {
+                        panic!("Found multiple _starts");
+                    }
+                    self.start_defined = true;
+                }
+                self.next_token();
+                if !self.check_token(TokenType::COLON) {
+                    panic!("Expected colon \":\" after each label");
+                }
+                //find index of the label
+
+                self.next_token();
+            },
+
+            _ => panic!("Token type not handled in instruction fn? Found: {}", self.current_token.token.to_string())
         }
         if self.current_token.token == TokenType::EOF {
             return;
@@ -221,17 +223,45 @@ impl<'a> Parser<'a> {
     }
 
     
-    fn find_label(&mut self) -> Result<&Token, &'static str> {
+    fn find_label(&mut self) -> Result<u16, &'static str> {
         //we check the label syntax in the instruction fn
-        let mut found_token: Option<&Token> = None;
-        let mut current_sect: Option<&Token> = None;
+        //we need to check that there's only 2 texts and datas but actually there can be more
+        // i need to check x86 how it works there. maybe its better to check all sections at the start
+        let mut found_token: Option<u16> = None;
+        let mut current_section: Option<&Token> = None;
 
         let mut iter = self.all_tokens.iter().enumerate();
-        loop {
-            let (_,x) = iter.next().unwrap();
-
+        let (_,mut x) = iter.next().unwrap();
+        while x.token == TokenType::NEWLINE {
+            (_, x) = iter.next().unwrap();
             
+        }
+        loop {
+            
+            (_, x) = iter.next().unwrap();
 
+            if x.token == TokenType::SECTION {
+                (_,x) = iter.next().unwrap();
+
+                if x.token == TokenType::TEXT {
+                    
+                }
+
+                if x.token == TokenType::DATA || x.token == TokenType::EOF {
+                    
+                }
+            }
+
+            match current_section {
+                None => continue,
+                Some(x) => {
+                    //TODO: check this
+                }
+            }
+            
+            if x.token == TokenType::EOF {
+                break;
+            }
         }
 
         
@@ -240,6 +270,48 @@ impl<'a> Parser<'a> {
             None => Err("Could not find label to jump to, check spelling"),
             Some(x) => Ok(x)
         }
+    }
+
+    fn check_sections(&mut self) -> Result<(), &'static str>{
+
+        let mut iter: Enumerate<std::slice::Iter<'_, Token>> = self.all_tokens.iter().enumerate();
+        let mut text_defined: bool  = false;
+        let mut data_defined: bool  = false;        
+
+        loop {
+            let (_,mut x) = iter.next().unwrap();
+            if x.token == TokenType::SECTION {
+                (_, x) = iter.next().unwrap();
+
+                match x.token {
+                    TokenType::DATA => {
+                        if data_defined {
+                            return Err("Data already defined");
+                        }
+                        data_defined = true;
+                    }
+
+                    TokenType::TEXT => {
+                        if text_defined {
+                            return Err("Text already defined");
+                        }
+                        text_defined = true;
+                    }
+                    
+                    _ => return Err("Found unexpected token after SECTION."),
+                }
+
+            }
+
+            if x.token == TokenType::EOF {
+                break;
+            }
+
+        }
+        if !text_defined {
+            return Err("Could not find \"section .text\"")
+        }
+        Ok(())
     }
 
 
