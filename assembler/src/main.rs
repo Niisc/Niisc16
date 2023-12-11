@@ -7,7 +7,7 @@ use crate::lexer::*;
 use crate::parser::*;
 
 fn main() {
-    let file_name = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/main.nasm");
+    let file_name = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/fibonacci.nasm");
 
     let out_filename = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/main.out");
 
@@ -21,11 +21,22 @@ fn main() {
 
     let mut parser = Parser::init(&code, &mut iter);
 
-    let mut emitter = Emitter::init(&out_filename);
-
-    match parser.program(&mut emitter) {
-        Ok(_) => {},
-        Err(x) => println!("{}",x),
+    match parser.program() {
+        Ok((all_tokens, all_labels)) => {
+            let mut emitter = Emitter::init(&out_filename, all_labels, all_tokens);
+        },
+        Err(x) => panic!("{}",x),
     }
     
+    
 }
+
+/*
+    loop {
+        let a = get_token(&code, &mut iter);
+        println!("{:?}", a);
+        if a.token == TokenType::EOF {
+            break;
+        }
+    }
+    */

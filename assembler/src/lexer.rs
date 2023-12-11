@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 #[derive(Display, EnumIter, Debug, PartialEq, Eq, PartialOrd, Clone, Hash)]
 pub enum TokenType {
-    EOF,
+   EOF,
 	NEWLINE,
 	IDENT,
 	STRING,

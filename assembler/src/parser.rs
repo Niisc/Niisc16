@@ -1,20 +1,24 @@
 use core::panic;
-use std::{iter::{Peekable, Enumerate}, str::Chars, collections::hash_map};
+use std::{iter::{Peekable, Enumerate}, str::Chars};
 
 use crate::{lexer::{Token, get_token, TokenType}, emitter::Emitter};
+
+pub struct Label {
+    name: String,
+    declared_line: Option<u16>
+}
 
 pub struct Parser<'a> {
     current_token: Token,
     peek_token: Token,
-    label_is_declared: Vec<String>,
-    label_is_gotoed: Vec<String>,
     symbols: Vec<String>,
     str: &'a String,
     iter: &'a mut Peekable<Enumerate<Chars<'a>>>,
     current_tokens: Vec<Token>,
     all_tokens: Vec<Token>,
     all_tokens_iter: Option<Enumerate<std::vec::IntoIter<Token>>>,
-    
+    all_labels: Vec<Label>,
+    current_line: u16,
     //program specific stuff
     start_defined: bool,
 }
@@ -24,20 +28,20 @@ impl<'a> Parser<'a> {
         Parser { 
             current_token: get_token(&code, ite),
             peek_token: get_token(&code, ite), 
-            label_is_declared: Vec::new(), // labels declared
-            label_is_gotoed: Vec::new(), // jumps to lables using jmp jnz jz
             symbols: Vec::new(), // variables in .data
             str: code,
             iter: ite,
             current_tokens: Vec::new(),
             all_tokens: Vec::new(),
             all_tokens_iter: None,
+            all_labels: Vec::new(),
+            current_line: 0,
 
             start_defined: false,
         }
     }
 
-    pub fn program(&'a mut self, emitter: &mut Emitter) -> Result<(), &'static str> {
+    pub fn program(&'a mut self) -> Result<(&Vec<Token>, &Vec<Label>), &'static str> {
 
         //push all tokens to a vector for easy access
         self.all_tokens.push(self.current_token.clone());
@@ -66,11 +70,13 @@ impl<'a> Parser<'a> {
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
 
+        /*
         while !self.check_token(TokenType::EOF) {
             self.section(emitter);
         }
+        */
 
-        Ok(())
+        Ok((&self.all_tokens, &self.all_labels))
 
         //need to check here that _start, .text and .data were defined.
 
@@ -99,7 +105,7 @@ impl<'a> Parser<'a> {
                 self.next_token();
 
                 while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
-
+                    //need to add data intructions
                     self.next_token();
                 }
             }
@@ -118,17 +124,28 @@ impl<'a> Parser<'a> {
 
             // make it so it can be on the same line (use continue)
 
-            
-
             //add imm label
             TokenType::IMM => {
                 self.next_token();
-                if !self.check_token(TokenType::NUMBER) {
-                    panic!("A number is needed after imm. Found: \"{}\" \"{}\"",self.current_token.token, self.current_token.data)
+                if !self.check_token(TokenType::NUMBER) && !self.check_token(TokenType::LABEL) {
                 }
-                if self.current_token.data.parse::<u16>().expect("Can not parse number after imm") > 16383 {
-                    panic!("The number provided after imm is too large. Max: 16383. Found: {}", self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
+                match self.current_token.token {
+                    TokenType::NUMBER => {
+                        if self.current_token.data.parse::<u16>().expect("Can not parse number after imm") > u16::MAX {
+                            panic!("The number provided after imm is too large. Max: {}. Found: {}", u16::MAX, self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
+                        }
+                    }
+                    TokenType::LABEL => {
+                        //have to replace with number
+                        if !self.all_labels.iter().find(|&x| x.name == self.current_token.data).is_some() {
+                            self.all_labels.push(Label{name: self.current_token.data.clone(), declared_line: None})
+                        }
+                    }
+                    _ => {
+                        panic!("A number/label is needed after imm. Found: \"{}\" \"{}\"",self.current_token.token, self.current_token.data)
+                    }
                 }
+                
                 emitter.emit_line(&self.current_tokens);
                 self.next_token();
             }
@@ -154,7 +171,7 @@ impl<'a> Parser<'a> {
                     self.current_tokens.pop(); // remove the number
                     self.current_tokens.push(Token{token: TokenType::CX, data: "cx".to_string()});
                 }
-
+                //add register
                 emitter.emit_line(&self.current_tokens);
                 self.next_token();
             }
@@ -162,7 +179,6 @@ impl<'a> Parser<'a> {
             
 
             TokenType::JNZ | TokenType::JZ => {
-                let mut label_jmp: Option<&Token> = None;
                 self.next_token();
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to jump to when using jz/jnz. Found: {}", self.current_token.token);
@@ -170,11 +186,13 @@ impl<'a> Parser<'a> {
                 }
                 if self.check_token(TokenType::IDENT) {
                     
-                    match self.find_label() {
-                        Err(x) => panic!("{}", x),
-                        Ok(x) => label_jmp = Some(x),
+                    for x in self.all_labels.iter() {
+                        if *x.name == self.current_token.data {
+                            return;
+                        }
                     }
-
+                    //TODO: make this more memory "performant"
+                    self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
                 }
 
                 self.next_token();
@@ -185,26 +203,51 @@ impl<'a> Parser<'a> {
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to compare when using jz/jnz. Found: {}", self.current_token.token);
                 }
+                self.next_token();
 
-
-                //how do we handle the labels
-                //make a vector to hold all of the tokens and remove the string at the emitter
-
-                self.label_is_gotoed.push(self.current_token.data.clone());
             }
 
             TokenType::JMP => {
+                self.next_token();
+                if self.check_token(TokenType::IDENT) {
+                    let mut found: bool = false;
+                    for x in self.all_labels.iter() {
+                        if *x.name == self.current_token.data {
+                            found = true;
+                            break;
+                        }
+                    }
+                    //TODO: make this more memory "performant"
+                    if !found {
+                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
+                    }
+                }
+                self.next_token();
 
             }
 
-            //Here we add the tokens we dont have to handle
+            //here we add the tokens we dont have to handle
             TokenType::IDENT =>{
                 if self.current_token.data.to_lowercase() == "_start" {
                     if self.start_defined {
+                        //learn to handle errors lol
                         panic!("Found multiple _starts");
                     }
                     self.start_defined = true;
                 }
+                //assume its a label
+                match self.all_labels.iter_mut().find(|x| x.name == self.current_token.data) {
+                    Some(x) => {
+                        if x.declared_line.is_some() {
+                            panic!("Label {} was declared more than once", x.name);
+                        }
+                        x.declared_line = Some(self.current_line);
+                    }
+                    None => {
+                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: Some(self.current_line) })
+                    }
+                };
+
                 self.next_token();
                 if !self.check_token(TokenType::COLON) {
                     panic!("Expected colon \":\" after each label");
@@ -222,55 +265,14 @@ impl<'a> Parser<'a> {
         self.new_line();
     }
 
-    
     fn find_label(&mut self) -> Result<u16, &'static str> {
-        //we check the label syntax in the instruction fn
-        //we need to check that there's only 2 texts and datas but actually there can be more
-        // i need to check x86 how it works there. maybe its better to check all sections at the start
         let mut found_token: Option<u16> = None;
         let mut current_section: Option<&Token> = None;
+        Ok(1)
 
-        let mut iter = self.all_tokens.iter().enumerate();
-        let (_,mut x) = iter.next().unwrap();
-        while x.token == TokenType::NEWLINE {
-            (_, x) = iter.next().unwrap();
-            
-        }
-        loop {
-            
-            (_, x) = iter.next().unwrap();
-
-            if x.token == TokenType::SECTION {
-                (_,x) = iter.next().unwrap();
-
-                if x.token == TokenType::TEXT {
-                    
-                }
-
-                if x.token == TokenType::DATA || x.token == TokenType::EOF {
-                    
-                }
-            }
-
-            match current_section {
-                None => continue,
-                Some(x) => {
-                    //TODO: check this
-                }
-            }
-            
-            if x.token == TokenType::EOF {
-                break;
-            }
-        }
-
-        
-
-        match found_token {
-            None => Err("Could not find label to jump to, check spelling"),
-            Some(x) => Ok(x)
-        }
     }
+
+    
 
     fn check_sections(&mut self) -> Result<(), &'static str>{
 
@@ -314,7 +316,6 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-
     fn check_token(&mut self, token: TokenType) -> bool {
         self.current_token.token  == token
     }
@@ -332,6 +333,7 @@ impl<'a> Parser<'a> {
         while self.current_token.token  == TokenType::NEWLINE {
             self.next_token();
         }
+        self.current_line+=1;
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
     }
@@ -352,5 +354,20 @@ impl<'a> Parser<'a> {
             self.peek_token = self.all_tokens_iter.as_mut().unwrap().next().expect("Failed to get next token").1;
         }
         
+    }
+
+    //checks if something containing a number was passed
+    fn check_token_numeral(&mut self) -> bool {
+        match self.current_token.token {
+
+            TokenType::NUMBER =>{true},
+            TokenType::IDENT=>{true},
+            _ =>{
+                if self.check_token_register() {
+                    return true
+                }
+                false
+            },
+        }
     }
 }

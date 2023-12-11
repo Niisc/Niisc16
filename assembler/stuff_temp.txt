@@ -1,0 +1,52 @@
+//this function is def wrong prob form gpt chat
+    /*
+    fn find_label(&mut self) -> Result<u16, &'static str> {
+        //we check the label syntax in the instruction fn
+        //we need to check that there's only 2 texts and datas but actually there can be more
+        // i need to check x86 how it works there. maybe its better to check all sections at the start
+        let mut found_token: Option<u16> = None;
+        let mut current_section: Option<&Token> = None;
+
+        let mut iter = self.all_tokens.iter().enumerate();
+        let (_,mut x) = iter.next().unwrap();
+        while x.token == TokenType::NEWLINE {
+            (_, x) = iter.next().unwrap();
+            
+        }
+        loop {
+            
+            (_, x) = iter.next().unwrap();
+
+            if x.token == TokenType::SECTION {
+                (_,x) = iter.next().unwrap();
+
+                if x.token == TokenType::TEXT {
+                    current_section == Some(x);
+                }
+
+                if x.token == TokenType::DATA || x.token == TokenType::EOF {
+                    current_section == Some(x);
+                    
+                }
+            }
+
+            match current_section {
+                None => continue,
+                Some(x) => {
+                    //TODO: check this
+                }
+            }
+            
+            if x.token == TokenType::EOF {
+                break;
+            }
+        }
+
+        
+
+        match found_token {
+            None => Err("Could not find label to jump to, check spelling"),
+            Some(x) => Ok(x)
+        }
+    }
+    */

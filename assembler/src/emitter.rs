@@ -4,6 +4,7 @@ use std::io::Bytes;
 use std::ops::{Shl, BitOr};
 
 use crate::lexer::{TokenType, Token};
+use crate::parser::Label;
 
 lazy_static! {
     static ref TOKEN_TO_BYTE: HashMap<TokenType, u8> = {
@@ -69,6 +70,8 @@ lazy_static! {
 pub struct Emitter<'a> {
     code: String,
     filename: &'a String,
+    all_labels: &'a Vec<Label>,
+    all_tokens: &'a Vec<Token>
 }
 
 impl<'a> Emitter<'a> {
@@ -116,10 +119,12 @@ impl<'a> Emitter<'a> {
     
     }
 
-    pub fn init(filename: &'a String) -> Emitter {
+    pub fn init(filename: &'a String, labels: &'a Vec<Label>, tokens: &'a Vec<Token>) -> Emitter<'a> {
         Emitter {
             code: String::from(""),
-            filename: filename
+            filename: filename,
+            all_labels: labels,
+            all_tokens: tokens,
         }
     }
 
