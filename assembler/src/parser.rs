@@ -70,11 +70,10 @@ impl<'a> Parser<'a> {
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
 
-        /*
+
         while !self.check_token(TokenType::EOF) {
-            self.section(emitter);
+            self.section();
         }
-        */
 
         Ok((&self.all_tokens, &self.all_labels))
 
@@ -83,7 +82,7 @@ impl<'a> Parser<'a> {
     }
 
 
-    fn section(&mut self, emitter: &mut Emitter) {
+    fn section(&mut self) {
         
         loop {
 
@@ -96,7 +95,7 @@ impl<'a> Parser<'a> {
             if self.check_token(TokenType::TEXT) {
                 self.next_token();
                 while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
-                    self.instruction(emitter);
+                    self.instruction();
                 }
             }
             
@@ -119,7 +118,7 @@ impl<'a> Parser<'a> {
 
     // need to add a warning for when a 16 bit and 8 bit register are being used
     // need to check that instructions are under text and variables are under data
-    fn instruction(&mut self, emitter: &mut Emitter) {
+    fn instruction(&mut self) {
         match self.current_token.token {
 
             // make it so it can be on the same line (use continue)
@@ -146,7 +145,6 @@ impl<'a> Parser<'a> {
                     }
                 }
                 
-                emitter.emit_line(&self.current_tokens);
                 self.next_token();
             }
 
@@ -167,12 +165,12 @@ impl<'a> Parser<'a> {
                 }
                 if self.check_token(TokenType::NUMBER) {
                     // add warning for over writing CX
-                    emitter.emit_line(&[Token{token: TokenType::IMM, data: "imm".to_string()}, self.current_token.clone()]);
+                    //emitter.emit_line(&[Token{token: TokenType::IMM, data: "imm".to_string()}, self.current_token.clone()]);
                     self.current_tokens.pop(); // remove the number
                     self.current_tokens.push(Token{token: TokenType::CX, data: "cx".to_string()});
                 }
                 //add register
-                emitter.emit_line(&self.current_tokens);
+                //emitter.emit_line(&self.current_tokens);
                 self.next_token();
             }
 
