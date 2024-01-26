@@ -20,6 +20,7 @@ pub struct Parser<'a> {
     all_labels: Vec<Label>,
     current_line: u16,
     //program specific stuff
+    current_token_num: u16,
     start_defined: bool,
 }
 
@@ -36,7 +37,8 @@ impl<'a> Parser<'a> {
             all_tokens_iter: None,
             all_labels: Vec::new(),
             current_line: 0,
-
+            
+            current_token_num: 0,
             start_defined: false,
         }
     }
@@ -126,8 +128,6 @@ impl<'a> Parser<'a> {
             //add imm label
             TokenType::IMM => {
                 self.next_token();
-                if !self.check_token(TokenType::NUMBER) && !self.check_token(TokenType::LABEL) {
-                }
                 match self.current_token.token {
                     TokenType::NUMBER => {
                         if self.current_token.data.parse::<u16>().expect("Can not parse number after imm") > u16::MAX {
@@ -136,7 +136,8 @@ impl<'a> Parser<'a> {
                     }
                     TokenType::LABEL => {
                         //have to replace with number
-                        if !self.all_labels.iter().find(|&x| x.name == self.current_token.data).is_some() {
+                        let c_label = self.all_labels.iter().position(|x| x.name == self.current_token.data);
+                        if c_label.is_none() {
                             self.all_labels.push(Label{name: self.current_token.data.clone(), declared_line: None})
                         }
                     }
@@ -269,8 +270,6 @@ impl<'a> Parser<'a> {
         Ok(1)
 
     }
-
-    
 
     fn check_sections(&mut self) -> Result<(), &'static str>{
 
