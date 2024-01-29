@@ -111,7 +111,7 @@ impl<'a> Emitter<'a> {
         }
     }
     
-    //need to remove
+    //TODO: need to remove this later
     fn emit_line(&mut self, line_of_code : &[Token]) {
         match line_of_code.len() {
             //add new line after every call here
