@@ -75,6 +75,7 @@ pub enum TokenType {
 	LDR = 127,
 	STR = 128,
 	MOV = 129,
+	NOP = 130
 
 }
 

@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::io::Bytes;
+use std::iter::Enumerate;
 use std::ops::{Shl, BitOr};
 
 use crate::lexer::{TokenType, Token};
@@ -71,19 +72,52 @@ pub struct Emitter<'a> {
     code: String,
     filename: &'a String,
     all_labels: &'a Vec<Label>,
-    all_tokens: &'a Vec<Token>
+    all_tokens: &'a Vec<Token>,
+    current_token: Token,
+    all_tokens_iter: Enumerate<std::vec::IntoIter<Token>>
 }
 
 impl<'a> Emitter<'a> {
 
-    pub fn emit_line(&mut self, line_of_code : &[Token]) {
+    pub fn emit_all(&mut self) {
+
+        while self.current_token.token != TokenType::EOF {
+            
+            let num: u16 = (*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(8);
+
+            match self.current_token.token {
+                // 1: instruction
+                TokenType::NOP | TokenType::RET => {
+                    //do nothing lol
+                    println!("1: {:#b}, {}", num,num);
+                }
+
+                // 2: instruction argument
+                TokenType::IMM  => {
+                    
+                }
+
+                TokenType::NOT | TokenType::LNOT | TokenType::JMP | TokenType::PUSH | TokenType::POP | TokenType::CALL => {
+
+                }
+
+                // 4: instruction arg comma arg
+                
+                
+                //other
+                _ => {}
+            }
+            self.next_token();
+        }
+    }
+    
+    fn emit_line(&mut self, line_of_code : &[Token]) {
         match line_of_code.len() {
             //add new line after every call here
 
             //1: instruction
             1 => {
                 let num:u16 = (*TOKEN_TO_BYTE.get(&line_of_code[0].token).unwrap() as u16).shl(8);
-                println!("1: {:#b}, {}", num,num);
                 self.code.push_str(num.to_string().as_str());
             }
     
@@ -118,6 +152,7 @@ impl<'a> Emitter<'a> {
 
     
     }
+    
 
     pub fn init(filename: &'a String, labels: &'a Vec<Label>, tokens: &'a Vec<Token>) -> Emitter<'a> {
         Emitter {
@@ -125,13 +160,22 @@ impl<'a> Emitter<'a> {
             filename: filename,
             all_labels: labels,
             all_tokens: tokens,
+            current_token: tokens[0].clone(),
+            all_tokens_iter: tokens.clone().into_iter().enumerate(),
+
         }
     }
 
     pub fn write_to_file(file_name: &String) {
         
     }
+
+    fn next_token(&mut self) {
+        self.current_token = self.all_tokens_iter.next().unwrap().1;
+    }
+
 }
+
 
 
 

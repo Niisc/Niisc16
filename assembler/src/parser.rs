@@ -77,6 +77,10 @@ impl<'a> Parser<'a> {
             self.section();
         }
 
+        if self.all_tokens.len() == 0 {
+            return Err("Size of all_tokens equal to zero?")
+        }
+
         Ok((&self.all_tokens, &self.all_labels))
 
         //need to check here that _start, .text and .data were defined.

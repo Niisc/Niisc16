@@ -7,6 +7,8 @@ use crate::lexer::*;
 use crate::parser::*;
 
 fn main() {
+    //add mode in args such that text is emitted and can be easily copied for projects
+    //problems may arise with little / big endian
     let file_name = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/fibonacci.nasm");
 
     let out_filename = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/main.out");
@@ -24,6 +26,8 @@ fn main() {
     match parser.program() {
         Ok((all_tokens, all_labels)) => {
             let mut emitter = Emitter::init(&out_filename, all_labels, all_tokens);
+            emitter.emit_all();
+            
         },
         Err(x) => panic!("{}",x),
     }
