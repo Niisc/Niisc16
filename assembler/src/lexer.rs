@@ -182,7 +182,7 @@ pub fn get_token(str: &String, iter: &mut Peekable<Enumerate<Chars<'_>>>) -> Tok
 fn check_if_keyword(token_text: &String) -> TokenType {
 	for token in TokenType::iter() {
 		if token.to_string().to_lowercase() == *token_text.to_ascii_lowercase() && TokenType::AX <= token && token <= TokenType::MOV    {
-			return  token;
+			return token;
 		}
 	}
 	match token_text.as_str() {

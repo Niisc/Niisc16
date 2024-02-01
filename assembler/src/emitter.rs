@@ -82,33 +82,71 @@ impl<'a> Emitter<'a> {
     pub fn emit_all(&mut self) {
 
         while self.current_token.token != TokenType::EOF {
-            
-            let num: u16 = (*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(8);
+            //push opcode
+            let mut num: u16 = (*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(8);
 
             match self.current_token.token {
                 // 1: instruction
+                //N type
                 TokenType::NOP | TokenType::RET => {
                     //do nothing lol
                     println!("1: {:#b}, {}", num,num);
                 }
 
                 // 2: instruction argument
+                //I type
                 TokenType::IMM  => {
-                    
+                    self.next_token();
+                    if self.check_label().unwrap() {
+                        //check label
+                    }
+                    num = num.bitor(&self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
+                    println!("2: {:#b}, {}", num,num);
                 }
 
-                TokenType::NOT | TokenType::LNOT | TokenType::JMP | TokenType::PUSH | TokenType::POP | TokenType::CALL => {
 
+                TokenType::NOT | TokenType::LNOT | TokenType::JMP | TokenType::PUSH | TokenType::POP | TokenType::CALL => {
+                    self.next_token();
+                    num = num.bitor((*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(6));
+                    println!("2: {:#b}, {}", num,num);
                 }
 
                 // 4: instruction arg comma arg
-                
+                //RR type
+                TokenType::ADD | TokenType::SUB | TokenType::AND | TokenType::OR | TokenType::MULU | TokenType::MULSW | TokenType::MULSB | TokenType::XOR | TokenType::DIVU | TokenType::DIVSB | TokenType::DIVSW | TokenType::SHL | TokenType::SHR | TokenType::CMP | TokenType::JZ | TokenType::JNZ | TokenType::LDR | TokenType::STR | TokenType::MOV => {
+                    self.next_token();
+                    num = num.bitor((*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(6));
+                    //skip 2 because it's a comma
+                    self.next_token();
+                    //comma
+                    self.next_token();
 
-                //other
-                _ => {}
+                    num = num.bitor((*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(2));
+
+                    println!("3: {:#b}, {}", num,num);
+                }
+                _ => {panic!("Token not handled? {:?}", &self.current_token.token)}
             }
+            self.code.push_str(num.to_string().as_str());
             self.next_token();
         }
+        
+    }
+
+    fn check_label(&mut self) -> Result<bool, &str>{
+        //is label?
+        if self.current_token.token == TokenType::LABEL {
+            //was it declared?
+            let c_label = self.all_labels.iter().find(|&x| x.name == self.current_token.data).expect("could not find label?");
+            if c_label.declared_line.is_some() {
+                return Ok(true);
+            }
+            return Err("Error in finding label");
+        }else {
+            return Ok(false);
+        }
+
+
     }
     
     //TODO: need to remove this later

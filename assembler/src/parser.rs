@@ -4,8 +4,8 @@ use std::{iter::{Peekable, Enumerate}, str::Chars};
 use crate::{lexer::{Token, get_token, TokenType}, emitter::Emitter};
 
 pub struct Label {
-    name: String,
-    declared_line: Option<u16>
+    pub name: String,
+    pub declared_line: Option<u16>
 }
 
 pub struct Parser<'a> {
@@ -134,8 +134,9 @@ impl<'a> Parser<'a> {
                 self.next_token();
                 match self.current_token.token {
                     TokenType::NUMBER => {
-                        if self.current_token.data.parse::<u16>().expect("Can not parse number after imm") > u16::MAX {
-                            panic!("The number provided after imm is too large. Max: {}. Found: {}", u16::MAX, self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
+                        //we only have 14 bits for number
+                        if self.current_token.data.parse::<u16>().expect("Can not parse number after imm") > 16383 {
+                            panic!("The number provided after imm is too large. Max: {}. Found: {}", 16383, self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
                         }
                     }
                     TokenType::LABEL => {
