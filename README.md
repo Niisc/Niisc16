@@ -32,8 +32,8 @@ Turing Complete
 https://store.steampowered.com/app/1444480/Turing_Complete/
 
 #### 3) Compiler and assembler
-https://austinhenley.com/blog/teenytinycompiler1.html
-https://austinhenley.com/blog/teenytinycompiler2.html
+https://austinhenley.com/blog/teenytinycompiler1.html<br/>
+https://austinhenley.com/blog/teenytinycompiler2.html<br/>
 https://austinhenley.com/blog/teenytinycompiler3.html
 
 #### 4) Book(s)
