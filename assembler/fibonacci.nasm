@@ -4,7 +4,7 @@ _start:
    mov   ax, 1    # latest number
    mov   bx, 0    # previous number
    mov   cx, 7    # number of numbers to print
-   mov io, ax     # "prints" ax
+   mov   io, ax   # "prints" ax
     
 loop:
    add   ax, bx   # = dx

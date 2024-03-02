@@ -79,6 +79,7 @@ pub struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
 
+    //Function to emit all assembly code to machine code
     pub fn emit_all(&mut self) {
 
         while self.current_token.token != TokenType::EOF {
@@ -98,9 +99,15 @@ impl<'a> Emitter<'a> {
                 TokenType::IMM  => {
                     self.next_token();
                     if self.check_label().unwrap() {
-                        //check label
+                        //Is label
+                        let c_label = self.all_labels.iter().find(|&x| x.name == self.current_token.data).expect("could not find label?");
+                        let current_line = c_label.declared_line.unwrap();
+                        num = num.bitor(current_line);
+
+                    }else {
+                        //Is number
+                        num = num.bitor(&self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
                     }
-                    num = num.bitor(&self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
                     println!("2: {:#b}, {}", num,num);
                 }
 
@@ -141,7 +148,7 @@ impl<'a> Emitter<'a> {
             if c_label.declared_line.is_some() {
                 return Ok(true);
             }
-            return Err("Error in finding label");
+            return Err("Error finding defined line for label");
         }else {
             return Ok(false);
         }
