@@ -1,7 +1,7 @@
 mod lexer;
 mod parser;
 mod emitter;
-use std::{fs::{self, File}, io::ErrorKind, path::PathBuf};
+use std::{env, fs::{self, File}, io::ErrorKind, path::PathBuf};
 use crate::emitter::*;
 use crate::lexer::*;
 use crate::parser::*;
@@ -57,6 +57,7 @@ fn main() {
             std::process::exit(1);
         }
     };
+    println!("{:?}, {}", args, env::current_dir().unwrap().display());
     //problems may arise with little / big endian
 
     let out_filename: String = String::from("/Users/nico/Documents/Code stuff/Niisc16/assembler/main.out");
@@ -68,9 +69,19 @@ fn main() {
     }
 
     let mut iter = code.chars().enumerate().peekable();
-
+    
     let mut parser = Parser::init(&code, &mut iter);
 
+    match parser.program() {
+        Ok((all_tokens, all_labels)) => {
+            println!("Tokens found: {:?}", all_tokens);
+            println!("Labels found: {:?}", all_labels);
+
+            
+        },
+        Err(x) => panic!("{}",x),
+    }
+    /*
     match parser.program() {
         Ok((all_tokens, all_labels)) => {
             let mut emitter = Emitter::init(&out_filename, all_labels, all_tokens);
@@ -79,6 +90,7 @@ fn main() {
         },
         Err(x) => panic!("{}",x),
     }
+    */
         
 }
 

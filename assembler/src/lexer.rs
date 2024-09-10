@@ -104,8 +104,7 @@ pub fn get_token(str: &String, iter: &mut Peekable<Enumerate<Chars<'_>>>) -> Tok
 
 			//skip comments
 			'#' => {
-				c_char = iter.next().unwrap().1;
-				while c_char != '\n' {
+				while iter.peek().is_some_and(|x| x.1 != '\n') {
 					match iter.next() {
 						Some((a, c)) => {
 							i=a;
@@ -114,6 +113,8 @@ pub fn get_token(str: &String, iter: &mut Peekable<Enumerate<Chars<'_>>>) -> Tok
 						None => return Token { data:'\0'.to_string(), token: TokenType::EOF },
 					}
 				}
+
+
 			}, 
 
 			' ' | '\r' | '\t' => continue, //skip whitespaces

@@ -1,8 +1,9 @@
  use core::panic;
-use std::{iter::{Peekable, Enumerate}, str::Chars};
+use std::{arch::x86_64, iter::{Enumerate, Peekable}, str::Chars};
 
 use crate::{lexer::{Token, get_token, TokenType}, emitter::Emitter};
 
+#[derive(Debug)]
 pub struct Label {
     pub name: String,
     pub declared_line: Option<u16>
@@ -54,6 +55,11 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
+        for i in &self.all_tokens {
+            println!("{:?}", i);
+        }
+        
+
 
         self.all_tokens_iter = Some(self.all_tokens.clone().into_iter().enumerate());
 
@@ -71,8 +77,10 @@ impl<'a> Parser<'a> {
 
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
-
-
+        //remove this loop
+        loop {
+            self.next_token();
+        }
         while !self.check_token(TokenType::EOF) {
             self.section();
         }
@@ -89,13 +97,13 @@ impl<'a> Parser<'a> {
 
 
     fn section(&mut self) {
-        
+
         loop {
 
             if !self.check_token(TokenType::SECTION) {
-                panic!("Expected a section, Found: {}", self.current_token.token.to_string());
+                panic!("Expected a section, Found: {}, {:?}", self.current_token.token.to_string(), self.peek_token);
             }
-
+            println!("Hello");
             self.next_token();
 
             if self.check_token(TokenType::TEXT) {
@@ -139,12 +147,13 @@ impl<'a> Parser<'a> {
                             panic!("The number provided after imm is too large. Max: {}. Found: {}", 16383, self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
                         }
                     }
-                    TokenType::LABEL => {
+                    TokenType::IDENT => {
                         //have to replace with number
-                        let c_label = self.all_labels.iter().position(|x| x.name == self.current_token.data);
-                        if c_label.is_none() {
-                            self.all_labels.push(Label{name: self.current_token.data.clone(), declared_line: None})
+
+                        if !self.label_exists(&self.current_token.data) {
+                            self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
                         }
+
                     }
                     _ => {
                         panic!("A number/label is needed after imm. Found: \"{}\" \"{}\"",self.current_token.token, self.current_token.data)
@@ -172,39 +181,51 @@ impl<'a> Parser<'a> {
                 self.next_token();
 
                 if !self.check_token_numeral() {
-                    panic!("A register or a number is needed as second argument of: {}", self.current_tokens.get(self.current_tokens.len()-1-3).unwrap().token)
+                    panic!("A register or a number is needed as second argument of: {}", c_token)
                 }
-                if self.check_token(TokenType::NUMBER) && self.check_token(TokenType::IDENT) {
+                if  self.check_token(TokenType::IDENT) {
                     // add warning for over writing CX
-                    //emitter.emit_line(&[Token{token: TokenType::IMM, data: "imm".to_string()}, self.current_token.clone()]);
                     //so essentialy we add an "imm number" before the instruction, and then substitute the number with cx
+                    if !self.label_exists(&self.current_token.data) {
+                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
+                    }
+                    self.add_imm(false);
+                    /*
                     let element = self.current_tokens.pop().unwrap();
                     self.current_tokens.insert(self.current_tokens.len()-4, Token{token: TokenType::IMM, data: "".to_string()});
                     self.current_tokens.insert(self.current_tokens.len()-4, element);
                     self.current_tokens.push(Token{token: TokenType::CX, data: "cx".to_string()});
-                    if !self.label_exists(&self.current_token.data) {
-                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
-                    }
+                    */
+                }
+
+                if self.check_token(TokenType::NUMBER) {
+                    self.add_imm(true);
                 }
 
                 self.next_token();
             }
 
+            //Syntax: JZ arg1, arg2
+            //Jump to value stored in arg1 if arg2 is zero
             TokenType::JNZ | TokenType::JZ => {
                 self.next_token();
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to jump to when using jz/jnz. Found: {}", self.current_token.token);
-                
                 }
 
-                //TODO: add an imm with the lable / number before the JNZ / JZ
-                //TODO: Add the Number case
                 if self.check_token(TokenType::IDENT) {
                     if !self.label_exists(&self.current_token.data) {
                         self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
                     }
+                    self.add_imm(true);
                 }
 
+                if self.check_token(TokenType::NUMBER) {
+                    self.add_imm(true);
+
+                }
+                //do nothing if register
+                
                 self.next_token();
                 if !self.check_token(TokenType::COMMA) {
                     panic!("Need to add a comma in between arguments when using jz/jnz");
@@ -213,6 +234,18 @@ impl<'a> Parser<'a> {
                 if !self.check_token(TokenType::IDENT) && !self.check_token(TokenType::NUMBER) && !self.check_token_register() {
                     panic!("Need to add a label, number or register to compare when using jz/jnz. Found: {}", self.current_token.token);
                 }
+                
+                if self.check_token(TokenType::IDENT) {
+                    if !self.label_exists(&self.current_token.data) {
+                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
+                    }
+                    self.add_imm( false);
+                }
+
+                if self.check_token(TokenType::NUMBER) {
+                    self.add_imm( false);
+                }
+
                 self.next_token();
 
             }
@@ -266,6 +299,25 @@ impl<'a> Parser<'a> {
             return;
         }
         self.new_line();
+    }
+
+    fn add_imm(&mut self, use_EX: bool ) {
+        let element = self.current_tokens.pop().unwrap();
+        self.current_tokens.push(Token{token: TokenType::CX, data: "".to_string()});
+        for i in (0..self.current_tokens.len()).rev() {
+            if  TokenType::ADD <= self.current_tokens.get(i).unwrap().token && self.current_tokens.get(i).unwrap().token <= TokenType::MOV {
+                
+                self.current_tokens.insert(i, Token{token: TokenType::IMM, data: "".to_string()});
+                self.current_tokens.insert(i, element.clone());
+                if use_EX {
+                    self.current_tokens.insert(i, Token{token: TokenType::MOV, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::EX, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::COMMA, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::CX, data: "".to_string()});
+                }
+                break;
+            }
+        }
     }
 
     fn find_label(&mut self) -> Result<u16, &'static str> {
