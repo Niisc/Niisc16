@@ -102,7 +102,7 @@ impl<'a> Emitter<'a> {
                         //Is label
                         let c_label = self.all_labels.iter().find(|&x| x.name == self.current_token.data).expect("could not find label?");
                         let current_line = c_label.declared_line.unwrap();
-                        num = num.bitor(current_line);
+                        num = num.bitor(current_line as u16);
 
                     }else {
                         //Is number

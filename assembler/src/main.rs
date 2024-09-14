@@ -1,7 +1,7 @@
 mod lexer;
 mod parser;
 mod emitter;
-use std::{env, fs::{self, File}, io::ErrorKind, path::PathBuf};
+use std::{arch::x86_64, env, fs::{self, File}, io::ErrorKind, path::PathBuf};
 use crate::emitter::*;
 use crate::lexer::*;
 use crate::parser::*;
@@ -73,11 +73,16 @@ fn main() {
     let mut parser = Parser::init(&code, &mut iter);
 
     match parser.program() {
-        Ok((all_tokens, all_labels)) => {
-            println!("Tokens found: {:?}", all_tokens);
-            println!("Labels found: {:?}", all_labels);
-
-            
+        Ok((current_tokens, all_labels)) => {
+            for x in current_tokens {
+                println!("{} {}", x.token, x.data);
+            }
+            println!();
+            for x in all_labels {
+                println!("Labels found: {:?}", x);
+            }
+            //println!("Tokens found: {:?}", all_tokens);
+            //println!("Labels found: {:?}", all_labels);
         },
         Err(x) => panic!("{}",x),
     }

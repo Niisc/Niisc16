@@ -6,7 +6,7 @@ use crate::{lexer::{Token, get_token, TokenType}, emitter::Emitter};
 #[derive(Debug)]
 pub struct Label {
     pub name: String,
-    pub declared_line: Option<u16>
+    pub declared_line: Option<i16>
 }
 
 pub struct Parser<'a> {
@@ -19,7 +19,7 @@ pub struct Parser<'a> {
     all_tokens: Vec<Token>,
     all_tokens_iter: Option<Enumerate<std::vec::IntoIter<Token>>>,
     all_labels: Vec<Label>,
-    current_line: u16,
+    current_line: i16,
     //program specific stuff
     current_token_num: u16,
     start_defined: bool,
@@ -62,6 +62,9 @@ impl<'a> Parser<'a> {
 
 
         self.all_tokens_iter = Some(self.all_tokens.clone().into_iter().enumerate());
+        self.all_tokens_iter.as_mut().unwrap().next();
+        self.all_tokens_iter.as_mut().unwrap().next();
+ 
 
         //check sections once
         match self.check_sections() {
@@ -74,13 +77,11 @@ impl<'a> Parser<'a> {
             self.next_token()
         }
 
-
+        //maybe remove this?
         self.current_tokens.clear();
         self.current_tokens.push(self.current_token.clone());
-        //remove this loop
-        loop {
-            self.next_token();
-        }
+        
+
         while !self.check_token(TokenType::EOF) {
             self.section();
         }
@@ -89,7 +90,7 @@ impl<'a> Parser<'a> {
             return Err("Size of all_tokens equal to zero?")
         }
 
-        Ok((&self.all_tokens, &self.all_labels))
+        Ok((&self.current_tokens, &self.all_labels))
 
         //need to check here that _start, .text and .data were defined.
 
@@ -103,18 +104,20 @@ impl<'a> Parser<'a> {
             if !self.check_token(TokenType::SECTION) {
                 panic!("Expected a section, Found: {}, {:?}", self.current_token.token.to_string(), self.peek_token);
             }
-            println!("Hello");
+            
             self.next_token();
 
             if self.check_token(TokenType::TEXT) {
                 self.next_token();
+                self.new_line();
+                self.current_line=0; //reset because of previous use of new_line()
                 while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
                     self.instruction();
                 }
             }
             
             if self.check_token(TokenType::DATA) {
-
+                //maybe put newline
                 self.next_token();
 
                 while !self.check_token(TokenType::SECTION) && !self.check_token(TokenType::EOF) {
@@ -122,8 +125,6 @@ impl<'a> Parser<'a> {
                     self.next_token();
                 }
             }
-
-            
 
             if self.check_token(TokenType::EOF) { break; }
         }
@@ -148,7 +149,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                     TokenType::IDENT => {
-                        //have to replace with number
+                        //TODO: have to replace with number
 
                         if !self.label_exists(&self.current_token.data) {
                             self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: None })
@@ -197,7 +198,8 @@ impl<'a> Parser<'a> {
                     self.current_tokens.push(Token{token: TokenType::CX, data: "cx".to_string()});
                     */
                 }
-
+                
+                //TODO: we dont need EX here?
                 if self.check_token(TokenType::NUMBER) {
                     self.add_imm(true);
                 }
@@ -282,12 +284,14 @@ impl<'a> Parser<'a> {
                     None => {
                         self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: Some(self.current_line) })
                     }
+                    
                 };
 
                 self.next_token();
                 if !self.check_token(TokenType::COLON) {
                     panic!("Expected colon \":\" after each label");
                 }
+                self.current_line -=1;
                 //find index of the label
 
                 self.next_token();
@@ -301,20 +305,30 @@ impl<'a> Parser<'a> {
         self.new_line();
     }
 
+    //use this when
     fn add_imm(&mut self, use_EX: bool ) {
         let element = self.current_tokens.pop().unwrap();
-        self.current_tokens.push(Token{token: TokenType::CX, data: "".to_string()});
+
+        if use_EX {
+            self.current_tokens.push(Token{token: TokenType::EX, data: "".to_string()}); 
+        }else {
+            self.current_tokens.push(Token{token: TokenType::CX, data: "".to_string()});
+        }
+
         for i in (0..self.current_tokens.len()).rev() {
             if  TokenType::ADD <= self.current_tokens.get(i).unwrap().token && self.current_tokens.get(i).unwrap().token <= TokenType::MOV {
                 
-                self.current_tokens.insert(i, Token{token: TokenType::IMM, data: "".to_string()});
-                self.current_tokens.insert(i, element.clone());
                 if use_EX {
-                    self.current_tokens.insert(i, Token{token: TokenType::MOV, data: "".to_string()});
-                    self.current_tokens.insert(i, Token{token: TokenType::EX, data: "".to_string()});
-                    self.current_tokens.insert(i, Token{token: TokenType::COMMA, data: "".to_string()});
                     self.current_tokens.insert(i, Token{token: TokenType::CX, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::COMMA, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::EX, data: "".to_string()});
+                    self.current_tokens.insert(i, Token{token: TokenType::MOV, data: "".to_string()});
+                    self.current_line += 1;
+
                 }
+                self.current_tokens.insert(i, element.clone());
+                self.current_tokens.insert(i, Token{token: TokenType::IMM, data: "".to_string()});
+                self.current_line += 1;
                 break;
             }
         }
@@ -382,13 +396,16 @@ impl<'a> Parser<'a> {
     }
 
     fn new_line(&mut self) {
-        self.match_token(TokenType::NEWLINE);
+        if self.current_token.token  != TokenType::NEWLINE {
+            panic!("expected {} found {}", TokenType::NEWLINE, self.current_token.token);
+        }
         while self.current_token.token  == TokenType::NEWLINE {
+            self.current_tokens.pop();
             self.next_token();
         }
         self.current_line+=1;
-        self.current_tokens.clear();
-        self.current_tokens.push(self.current_token.clone());
+        //self.current_tokens.clear();
+        //self.current_tokens.push(self.current_token.clone());
     }
     
     fn match_token(&mut self, token: TokenType) {
@@ -435,4 +452,3 @@ impl<'a> Parser<'a> {
         self.all_labels.iter().any(|x| x.name == token_data)
     }
 }
-

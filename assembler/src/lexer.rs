@@ -162,7 +162,7 @@ pub fn get_token(str: &String, iter: &mut Peekable<Enumerate<Chars<'_>>>) -> Tok
 
 				let start_index = i;
 
-				while peek(iter).is_alphanumeric() {
+				while peek(iter).is_alphanumeric() || peek(iter) == '_' {
 					(i, _) = iter.next().unwrap(); 
 				}
 
