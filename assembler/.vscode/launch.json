@@ -20,7 +20,11 @@
                 }
             },
             "args": [
-            "fibonacci.nasm"
+            "fibonacci.nasm",
+            "-l",
+            "8",
+            "-f",
+            "d"
         ],
             "cwd": "${workspaceFolder}"
         },

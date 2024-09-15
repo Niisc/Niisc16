@@ -2,6 +2,7 @@
 use std::{arch::x86_64, iter::{Enumerate, Peekable}, str::Chars};
 
 use crate::{lexer::{Token, get_token, TokenType}, emitter::Emitter};
+use crate::OutputLineFormat;
 
 #[derive(Debug)]
 pub struct Label {
@@ -23,10 +24,11 @@ pub struct Parser<'a> {
     //program specific stuff
     current_token_num: u16,
     start_defined: bool,
+    line_format: OutputLineFormat,
 }
 
 impl<'a> Parser<'a> {
-    pub fn init(code: &'a String, ite: &'a mut Peekable<Enumerate<Chars<'a>>>) -> Parser<'a> {
+    pub fn init(code: &'a String, ite: &'a mut Peekable<Enumerate<Chars<'a>>>,  format: OutputLineFormat) -> Parser<'a> {
         Parser { 
             current_token: get_token(&code, ite),
             peek_token: get_token(&code, ite), 
@@ -41,6 +43,7 @@ impl<'a> Parser<'a> {
             
             current_token_num: 0,
             start_defined: false,
+            line_format: format
         }
     }
 
@@ -55,12 +58,7 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        for i in &self.all_tokens {
-            println!("{:?}", i);
-        }
         
-
-
         self.all_tokens_iter = Some(self.all_tokens.clone().into_iter().enumerate());
         self.all_tokens_iter.as_mut().unwrap().next();
         self.all_tokens_iter.as_mut().unwrap().next();
@@ -279,10 +277,19 @@ impl<'a> Parser<'a> {
                         if x.declared_line.is_some() {
                             panic!("Label {} was declared more than once", x.name);
                         }
-                        x.declared_line = Some(self.current_line);
+                        if self.line_format == OutputLineFormat::Separated8Bit {
+                            x.declared_line = Some(self.current_line*2);
+                        }else {
+                            x.declared_line = Some(self.current_line);
+                        }
                     }
                     None => {
-                        self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: Some(self.current_line) })
+                        if self.line_format == OutputLineFormat::Separated8Bit {
+                            self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: Some(self.current_line*2) })
+                        }else {
+                            self.all_labels.push(Label { name: self.current_token.data.clone(), declared_line: Some(self.current_line) })
+                        }
+                        
                     }
                     
                 };
@@ -420,9 +427,10 @@ impl<'a> Parser<'a> {
             self.current_token = self.peek_token.clone();
         }else {
             self.current_token = self.peek_token.clone();
-            self.current_tokens.push(self.current_token.clone());
+            
             self.peek_token = self.all_tokens_iter.as_mut().unwrap().next().expect("Failed to get next token").1;
         }
+        self.current_tokens.push(self.current_token.clone());
         
     }
 

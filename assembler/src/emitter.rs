@@ -69,7 +69,7 @@ lazy_static! {
 }
 
 pub struct Emitter<'a> {
-    code: String,
+    code: Vec<u16>,
     filename: &'a String,
     all_labels: &'a Vec<Label>,
     all_tokens: &'a Vec<Token>,
@@ -78,13 +78,30 @@ pub struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
+    pub fn init(filename: &'a String, labels: &'a Vec<Label>, tokens: &'a Vec<Token>) -> Emitter<'a> {
+        Emitter {
+            code: Vec::new(),
+            filename: filename,
+            all_labels: labels,
+            all_tokens: tokens,
+            current_token: tokens[0].clone(),
+            all_tokens_iter: tokens.clone().into_iter().enumerate(),
 
+        }
+    }
     //Function to emit all assembly code to machine code
-    pub fn emit_all(&mut self) {
+    pub fn emit_all(&mut self) -> &mut Vec<u16> {
 
         while self.current_token.token != TokenType::EOF {
+
+            //skipp
+            if self.current_token.token == TokenType::IDENT || self.current_token.token == TokenType::SECTION || self.current_token.token == TokenType::TEXT || self.current_token.token == TokenType::COLON{
+                self.next_token();
+                continue;
+            }
             //push opcode
-            let mut num: u16 = (*TOKEN_TO_BYTE.get(&self.current_token.token).unwrap() as u16).shl(8);
+            println!("{}", self.current_token.token);
+            let mut num: u16 = (*TOKEN_TO_BYTE.get(&self.current_token.token).expect("could not find token in emitter") as u16).shl(8);
 
             match self.current_token.token {
                 // 1: instruction
@@ -106,6 +123,7 @@ impl<'a> Emitter<'a> {
 
                     }else {
                         //Is number
+                        println!("{:?}", self.current_token);
                         num = num.bitor(&self.current_token.data.parse::<u16>().expect("Can not parse number after imm"));
                     }
                     println!("2: {:#b}, {}", num,num);
@@ -132,17 +150,20 @@ impl<'a> Emitter<'a> {
 
                     println!("3: {:#b}, {}", num,num);
                 }
+
+
                 _ => {panic!("Token not handled? {:?}", &self.current_token.token)}
             }
-            self.code.push_str(num.to_string().as_str());
+            self.code.push(num);
             self.next_token();
         }
+        return  &mut self.code;
         
     }
 
     fn check_label(&mut self) -> Result<bool, &str>{
         //is label?
-        if self.current_token.token == TokenType::LABEL {
+        if self.current_token.token == TokenType::IDENT {
             //was it declared?
             let c_label = self.all_labels.iter().find(|&x| x.name == self.current_token.data).expect("could not find label?");
             if c_label.declared_line.is_some() {
@@ -152,12 +173,11 @@ impl<'a> Emitter<'a> {
         }else {
             return Ok(false);
         }
-
-
     }
     
     //TODO: need to remove this later
     //this function is old, use emit all
+    /*
     fn emit_line(&mut self, line_of_code : &[Token]) {
         match line_of_code.len() {
             //add new line after every call here
@@ -201,21 +221,12 @@ impl<'a> Emitter<'a> {
     }
     
 
-    pub fn init(filename: &'a String, labels: &'a Vec<Label>, tokens: &'a Vec<Token>) -> Emitter<'a> {
-        Emitter {
-            code: String::from(""),
-            filename: filename,
-            all_labels: labels,
-            all_tokens: tokens,
-            current_token: tokens[0].clone(),
-            all_tokens_iter: tokens.clone().into_iter().enumerate(),
-
-        }
-    }
+    
 
     pub fn write_to_file(file_name: &String) {
         
     }
+     */
 
     fn next_token(&mut self) {
         self.current_token = self.all_tokens_iter.next().unwrap().1;

@@ -1,0 +1,14 @@
+64#imm 12 reg2
+12
+193#push reg2
+0
+196#pop reg0
+0
+64#imm 16 reg2
+16
+212 #str reg0 reg2
+16
+208 #ldr reg1 reg2
+144
+217 #mov reg3, reg2
+144
